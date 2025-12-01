@@ -2,71 +2,68 @@ import os
 import chromadb
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.vector_stores.chroma import ChromaVectorStore
-# 追加: Issue/PR用のリーダーとクライアントをインポート
 from llama_index.readers.github import (
     GithubRepositoryReader,
     GithubClient,
     GitHubRepositoryIssuesReader,
     GitHubIssuesClient
 )
-from google.oauth2 import service_account 
+# 新しい Google GenAI SDK 対応のクラス
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 
 from config import settings
 
 def initialize_llama_index_settings():
-    """Llama Indexの設定を初期化"""
+    """Llama Indexの設定を初期化 (Google GenAI SDK統一版)"""
+    
+    # 共通設定: 埋め込みモデル名 (新SDKでは "models/" プレフィックスは不要)
+    embed_model_name = "text-embedding-004"
+    
     if settings.USE_VERTEX_AI:
         # === Vertex AIモード ===
-        from llama_index.llms.vertex import Vertex
-        from llama_index.embeddings.vertex import VertexTextEmbedding
+        print("🔧 Llama Index: Vertex AIモード (via Google GenAI SDK) を設定中...")
+        
+        # Vertex AI 接続設定
+        # GOOGLE_APPLICATION_CREDENTIALS は SDK が自動的に環境変数から読み込みます
+        vertex_config = {
+            "project": settings.GCP_PROJECT_ID,
+            "location": settings.GCP_LOCATION,
+        }
 
-        print("🔧 Llama Index: Vertex AIモードの設定を初期化中...")
-
-        json_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        credentials = None
-        if json_path and os.path.exists(json_path):
-            credentials = service_account.Credentials.from_service_account_file(json_path)
-
-        Settings.embed_model = VertexTextEmbedding(
-            model_name="text-embedding-004",
-            project=settings.GCP_PROJECT_ID,
-            location=settings.GCP_LOCATION,
-            credentials=credentials
+        Settings.embed_model = GoogleGenAIEmbedding(
+            model_name=embed_model_name,
+            vertexai_config=vertex_config
         )
 
-        Settings.llm = Vertex(
+        Settings.llm = GoogleGenAI(
             model=settings.GEMINI_PRO_MODEL_NAME,
-            project=settings.GCP_PROJECT_ID,
-            location=settings.GCP_LOCATION,
-            credentials=credentials,
+            vertexai_config=vertex_config,
             max_tokens=4096,
             temperature=0.1,
-            context_window=1000000 
+            # context_window はモデル名から自動推定されるため省略可
         )
 
         print("✅ Llama Index: Vertex AIモードの設定が完了しました。")
     
     else:
         # === AI Studioモード ===
-        from llama_index.llms.gemini import Gemini
-        from llama_index.embeddings.gemini import GeminiEmbedding
-
-        print("🔧 Llama Index: Gemini APIモードの設定を初期化中...")
+        print("🔧 Llama Index: AI Studioモード (via Google GenAI SDK) を設定中...")
         
+        # API Keyを設定 (新SDKもこの環境変数を参照)
         os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
 
-        Settings.embed_model = GeminiEmbedding(
-            model_name="models/text-embedding-004"
+        Settings.embed_model = GoogleGenAIEmbedding(
+            model_name=embed_model_name
         )
 
-        Settings.llm = Gemini(
+        Settings.llm = GoogleGenAI(
             model=settings.GEMINI_PRO_MODEL_NAME,
             max_tokens=4096,
-            temperature=0.1,
-            context_window=1000000
+            temperature=0.1
         )
 
-        print("✅ Llama Index: Gemini APIモードの設定が完了しました。")
+        print("✅ Llama Index: AI Studioモードの設定が完了しました。")
     
 
 def get_index():
@@ -133,8 +130,7 @@ def get_index():
             verbose=True
         )
 
-        # データをロード (State.ALL で Open/Closed 両方取得)
-        # ※データ量が多い場合は state=GitHubRepositoryIssuesReader.IssueState.OPEN に絞ることも可能
+        # データをロード
         issue_documents = issues_reader.load_data(
             state=GitHubRepositoryIssuesReader.IssueState.ALL
         )
