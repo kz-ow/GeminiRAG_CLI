@@ -5,6 +5,10 @@ LlamaIndex × Gemini で、**GitHubリポジトリの「コード」だけでな
 - **Google AI Studio / Vertex AI** を `USE_VERTEX_AI` 1つで切り替え可能
 - ベクタDBは **ChromaDB** を利用（ローカル永続化）
 
+より詳しく知りたい方はQiitaに記事としてまとめているので，以下を参照してください．
+
+https://qiita.com/kz-ow/items/aebfdd26115bb600218d
+
 ## 1．デモ動画
 以下が完成品のデモ動画です．デモ動画では，実際に自作した既存アプリケーションのリポジトリである Linebotリポジトリ を参照しながら，「verify_tokenというメソッドがどのような用途のために作成されたか」を質問してみました．
 
